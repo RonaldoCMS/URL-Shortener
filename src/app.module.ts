@@ -5,6 +5,7 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { createClient } from 'redis';
 import { redisStore } from 'cache-manager-redis-yet';
 import { UrlModule } from './url/url.module';
+import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
@@ -44,6 +45,21 @@ import { UrlModule } from './url/url.module';
         }),
       }),
     }),
+
+    BullModule.forRootAsync({
+  imports: [ConfigModule],
+  inject: [ConfigService],
+  useFactory: (config: ConfigService) => ({
+    connection: {
+      host: config.get('REDIS_HOST'),
+      port: config.get<number>('REDIS_PORT'),
+    },
+  }),
+}),
+
+BullModule.registerQueue({
+  name: 'url-expiration',
+}),
 
     UrlModule,
   ],

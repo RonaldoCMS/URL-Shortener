@@ -6,14 +6,20 @@ import { Inject } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
 import { Url } from './url.entity';
 import { nanoid } from 'nanoid';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 
 @Injectable()
 export class UrlService {
     constructor(
         @InjectRepository(Url)
         private readonly urlRepository: Repository<Url>,
+
         @Inject(CACHE_MANAGER)
         private readonly cacheManager: Cache,
+
+        @InjectQueue('url-expiration')
+        private readonly urlQueue: Queue,
     ) { }
 
     async shorten(originalUrl: string, ttlSeconds?: number): Promise<Url> {
@@ -25,7 +31,20 @@ export class UrlService {
                 ? new Date(Date.now() + ttlSeconds * 1000)
                 : null,
         });
-        return this.urlRepository.save(url);
+
+        const saved = await this.urlRepository.save(url);
+
+        // Se c'è un TTL, schedula il job di eliminazione
+        if (ttlSeconds) {
+            await this.urlQueue.add(
+                'delete-expired-url',
+                { shortCode },
+                { delay: ttlSeconds * 1000 },
+            );
+           console.log(`⏰ Job schedulato per ${shortCode} tra ${ttlSeconds} secondi`);
+        }
+
+        return saved;
     }
 
     async resolve(shortCode: string): Promise<string> {

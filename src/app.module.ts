@@ -9,7 +9,6 @@ import { BullModule } from '@nestjs/bullmq';
 
 @Module({
   imports: [
-
     // Carica le variabili d'ambiente dal file .env
     ConfigModule.forRoot({
       isGlobal: true,
@@ -19,16 +18,21 @@ import { BullModule } from '@nestjs/bullmq';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DB_HOST'),
-        port: config.get<number>('DB_PORT'),
-        username: config.get('DB_USER'),
-        password: config.get('DB_PASSWORD'),
-        database: config.get('DB_NAME'),
-        autoLoadEntities: true,
-        synchronize: config.get('TESTING') === 'true', // Sincronizza solo in ambiente di testing
-      }),
+
+      useFactory: (config: ConfigService) => {
+        var dbConfig = {
+          type: 'postgres' as const,
+          host: config.get('DB_HOST'),
+          port: config.get<number>('DB_PORT'),
+          username: config.get('DB_USER'),
+          password: config.get('DB_PASSWORD'),
+          database: config.get('DB_NAME'),
+          autoLoadEntities: true,
+          synchronize: config.get('TESTING') === 'true', // Sincronizza solo in ambiente di testing
+        };
+        console.log('DB CONFIG:', dbConfig);
+        return dbConfig;
+      },
     }),
 
     // Connessione a Redis
@@ -47,22 +51,21 @@ import { BullModule } from '@nestjs/bullmq';
     }),
 
     BullModule.forRootAsync({
-  imports: [ConfigModule],
-  inject: [ConfigService],
-  useFactory: (config: ConfigService) => ({
-    connection: {
-      host: config.get('REDIS_HOST'),
-      port: config.get<number>('REDIS_PORT'),
-    },
-  }),
-}),
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get('REDIS_HOST'),
+          port: config.get<number>('REDIS_PORT'),
+        },
+      }),
+    }),
 
-BullModule.registerQueue({
-  name: 'url-expiration',
-}),
+    BullModule.registerQueue({
+      name: 'url-expiration',
+    }),
 
     UrlModule,
   ],
 })
-
 export class AppModule {}
